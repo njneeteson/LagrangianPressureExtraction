@@ -151,3 +151,66 @@ def tessellate(X):
 # this function is useful for calculating face sizes cleanly
 def triangleArea3D(V):
 	return (1/2)*np.linalg.norm(np.cross( V[1]-V[0], V[2]-V[0] ))
+	
+
+def divergence(network,F):
+	
+	divF = np.zeros((F.shape[0],1))
+	
+	for p in range(F.shape[0]):
+		
+		Np = np.asarray(network['N'][p]).reshape(len(network['N'][p]),1)
+		Hp = np.asarray(network['H'][p]).reshape(len(network['H'][p]),1)
+		Sp = np.asarray(network['S'][p]).reshape(len(network['S'][p]),1)
+		nHatp = np.asarray(network['nHat'][p])
+		
+		Fp = np.asarray(F[p,:]).reshape(1,len(F[p,:]))
+		Fn = np.asarray(F[Np,:]).reshape(len(network['N'][p]),len(F[p,:]))
+		
+		divF[p] = np.divide( np.sum(np.matmul((Fn + Fp*np.ones(Np.shape)).T,Sp)), np.sum(np.multiply(Sp,Hp))/3 )
+
+	return divF
+
+
+def laplacian(network,F):
+	
+	lapF = np.zeros(F.shape)
+	
+	for p in range(F.shape[0]):
+		
+		Np = np.asarray(network['N'][p]).reshape(len(network['N'][p]),1)
+		Hp = np.asarray(network['H'][p]).reshape(len(network['H'][p]),1)
+		Sp = np.asarray(network['S'][p]).reshape(len(network['S'][p]),1)
+		
+		lapF[p] = (np.sum(F[Np]*Sp/Hp) - F[p]*np.sum(Sp/Hp)) / ( np.sum(Sp*Hp)/6 )
+	
+	return lapF
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
