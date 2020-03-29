@@ -226,6 +226,8 @@ def poissonPressureSolver(network,rho,DUDt,Dir,p0,Neum,gradp):
 			bSource = -(rho/2)*np.dot( Si, np.matmul( DUDt[i,:]+DUDt[Ni,:], nHati.T ) )
 			
 			bNeum = -(1/2)*np.dot( Neum[Ni]*Si, np.matmul( gradp[i,:] + gradp[Ni,:], nHati.T ) )
+			
+			b[i] = bSource + bNeum
 	
 	p, exitCode = gmres(A,b)
 	
