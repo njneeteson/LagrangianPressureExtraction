@@ -1,5 +1,7 @@
 import numpy as np
 from scipy.spatial import Delaunay, Voronoi, ConvexHull
+from scipy import sparse
+from scipy.sparse.linalg import gmres
 
 # first we need a "small-scale" tessellation function
 def tessellateSS(Xc,Xn):
@@ -167,26 +169,67 @@ def divergence(network,F):
 		Fp = np.asarray(F[p,:]).reshape(1,len(F[p,:]))
 		Fn = np.asarray(F[Np,:]).reshape(len(network['N'][p]),len(F[p,:]))
 		
-		divF[p] = np.divide( np.sum(np.matmul((Fn + Fp*np.ones(Np.shape)).T,Sp)), np.sum(np.multiply(Sp,Hp))/3 )
+		divF[p] = np.divide(
+			np.sum(np.matmul((Fn + Fp*np.ones(Np.shape)).T,Sp)), 
+			np.sum(np.multiply(Sp,Hp))/3 
+			)
 
 	return divF
 
 
-def laplacian(network,F):
+def laplacian(network,f):
 	
-	lapF = np.zeros(F.shape)
+	lapf = np.zeros(f.shape)
 	
-	for p in range(F.shape[0]):
+	for p in range(f.shape[0]):
 		
 		Np = np.asarray(network['N'][p]).reshape(len(network['N'][p]),1)
 		Hp = np.asarray(network['H'][p]).reshape(len(network['H'][p]),1)
 		Sp = np.asarray(network['S'][p]).reshape(len(network['S'][p]),1)
 		
-		lapF[p] = (np.sum(F[Np]*Sp/Hp) - F[p]*np.sum(Sp/Hp)) / ( np.sum(Sp*Hp)/6 )
+		lapf[p] = (np.sum(f[Np]*Sp/Hp) - f[p]*np.sum(Sp/Hp)) / ( np.sum(Sp*Hp)/6 )
 	
-	return lapF
+	return lapf
 
-
+def poissonPressureSolver(network,rho,DUDt,Dir,p0,Neum,gradp):
+	
+	numPoints = len(network['B'])
+	
+	A = sparse.lil_matrix((numPoints,numPoints))
+	
+	b = np.zeros((numPoints,1))
+	
+	for i in range(numPoints):
+		
+		if Dir[i]:
+			
+			A[i,i] = 1
+			b[i] = p0[i]
+			
+		elif Neum[i]:
+			
+			A[i,i] = 1
+			b[i] = 0
+			
+		else:
+			
+			Ni = np.asarray(network['N'][i]).reshape(len(network['N'][i]),1)
+			Hi = np.asarray(network['H'][i]).reshape(len(network['H'][i]),1)
+			Si = np.asarray(network['S'][i]).reshape(len(network['S'][i]),1)
+			nHati = np.asarray(network['nHat'][i])
+			
+			for n in range(len(Ni)):
+				A[i,Ni[n]] = (Neum[Ni[n]] - 1) * (Si[n]/Hi[n])
+			
+			A[i,i] = -np.sum(A[i,:])
+			
+			bSource = -(rho/2)*np.dot( Si, np.matmul( DUDt[i,:]+DUDt[Ni,:], nHati.T ) )
+			
+			bNeum = -(1/2)*np.dot( Neum[Ni]*Si, np.matmul( gradp[i,:] + gradp[Ni,:], nHati.T ) )
+	
+	p, exitCode = gmres(A,b)
+	
+	return p
 
 
 
