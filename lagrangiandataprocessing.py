@@ -47,7 +47,7 @@ def tessellateSS(Xc,Xn):
 			# in order to check if a face corresponds to a neighbour, the criteria is that
 			# all of the vertices of face 'f' ( vorFaces[f] ) are contained in the list of
 			# voronoi vertices for neighbour 'n' ( vor.regions[n+1] )
-			if all(v in vor.regions[n+2] for v in vorFaces[f]):
+			if all(v in vor.regions[vor.point_region[n+1]] for v in vorFaces[f]):
 				S[n] = S[n] + faceArea
 				break
 	
@@ -213,9 +213,9 @@ def poissonPressureSolver(network,rho,DUDt,Dir,p0,Neum,gradp):
 			
 		else:
 			
-			Ni = np.asarray(network['N'][i]).reshape(len(network['N'][i]),1)
-			Hi = np.asarray(network['H'][i]).reshape(len(network['H'][i]),1)
-			Si = np.asarray(network['S'][i]).reshape(len(network['S'][i]),1)
+			Ni = np.asarray(network['N'][i]).reshape(len(network['N'][i]))
+			Hi = np.asarray(network['H'][i]).reshape(len(network['H'][i]))
+			Si = np.asarray(network['S'][i]).reshape(len(network['S'][i]))
 			nHati = np.asarray(network['nHat'][i])
 			
 			for n in range(len(Ni)):
@@ -223,13 +223,31 @@ def poissonPressureSolver(network,rho,DUDt,Dir,p0,Neum,gradp):
 			
 			A[i,i] = -np.sum(A[i,:])
 			
-			bSource = -(rho/2)*np.dot( Si, np.matmul( DUDt[i,:]+DUDt[Ni,:], nHati.T ) )
+			bSource = -(rho/2) * np.sum(
+				Si * (
+					(DUDt[i,0]+DUDt[Ni,0]) * nHati[:,0] +
+					(DUDt[i,1]+DUDt[Ni,1]) * nHati[:,1] +
+					(DUDt[i,2]+DUDt[Ni,2]) * nHati[:,2]
+				)
+			)
 			
-			bNeum = -(1/2)*np.dot( Neum[Ni]*Si, np.matmul( gradp[i,:] + gradp[Ni,:], nHati.T ) )
+			bNeum = -(1/2) * np.sum(
+				Neum[Ni] * Si * (
+					(gradp[i,0] + gradp[Ni,0]) * nHati[:,0] +
+					(gradp[i,1] + gradp[Ni,1]) * nHati[:,1] +
+					(gradp[i,2] + gradp[Ni,2]) * nHati[:,2]
+				)
+			)
 			
 			b[i] = bSource + bNeum
 	
-	p, exitCode = gmres(A,b)
+	
+	A = A.tocsc()
+	
+	M_x = lambda x: sparse.linalg.spsolve(A, x)
+	M = sparse.linalg.LinearOperator((numPoints,numPoints), M_x)
+	
+	p, exitCode = gmres(A, b, M=M, tol=1e-6, maxiter=2000)
 	
 	return p
 
